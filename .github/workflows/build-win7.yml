@@ -27,13 +27,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd openlist-src
-          mkdir -p public/dist
-          gh release download -R OpenListTeam/OpenList-Frontend -p "*.tar.gz" -p "*.zip" -D /tmp/frontend
+          mkdir -p public/dist /tmp/frontend
+          gh release download -R OpenListTeam/OpenList-Frontend -p "openlist-frontend-dist-v*.tar.gz" -D /tmp/frontend
           ls -la /tmp/frontend
-          if ls /tmp/frontend/*.zip 1> /dev/null 2>&1; then
-            unzip -q /tmp/frontend/*.zip -d public/dist
-          else
-            tar -zxf /tmp/frontend/*.tar.gz -C public/dist
+          tar -zxf /tmp/frontend/openlist-frontend-dist-v*.tar.gz -C public/dist
+          if [ -d "public/dist/dist" ]; then
+            mv public/dist/dist/* public/dist/
+            rmdir public/dist/dist
           fi
           ls -la public/dist
 
