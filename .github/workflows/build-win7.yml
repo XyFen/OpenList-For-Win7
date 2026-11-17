@@ -1,7 +1,7 @@
 name: Build OpenList for Windows 7
 
 on:
-  workflow_dispatch: # 支持在 GitHub 页面手动一键触发
+  workflow_dispatch:
     inputs:
       arch:
         description: '目标系统架构 (amd64 为 64位，386 为 32位)'
@@ -16,46 +16,44 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 安装基础解压与编译依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq unzip curl wget
-
-      - name: 2. 拉取 OpenList 最新源码
+      - name: 1. 拉取 OpenList 最新源码
         run: |
           git clone --depth 1 https://github.com openlist-src
 
-      - name: 3. 下载并集成 OpenList 前端静态页面
+      - name: 2. 下载并集成 OpenList 前端静态页面
         run: |
           cd openlist-src
           mkdir -p public/dist
-          # 自动获取最新的前端构建压缩包
-          FRONTEND_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name | endswith(".tar.gz")) | .browser_download_url' | head -n 1)
-          echo "Downloading Frontend from: $FRONTEND_URL"
-          wget -qO dist.tar.gz "$FRONTEND_URL"
-          tar -zxf dist.tar.gz -C public/dist
-          rm -f dist.tar.gz
+          FRONTEND_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name | test("\\.(tar\\.gz|zip)$")) | .browser_download_url' | head -n 1)
+          echo "Frontend URL: $FRONTEND_URL"
+          if [[ "$FRONTEND_URL" == *.zip ]]; then
+            curl -sL "$FRONTEND_URL" -o dist.zip
+            unzip -q dist.zip -d public/dist
+          else
+            curl -sL "$FRONTEND_URL" -o dist.tar.gz
+            tar -zxf dist.tar.gz -C public/dist
+          fi
 
-      - name: 4. 下载并配置 XTLS/go-win7 编译器
+      - name: 3. 下载并配置 XTLS/go-win7 编译器
         run: |
-          # 自动获取 XTLS/go-win7 最新版 Linux amd64 预编译包
-          GO_WIN7_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name | test("go-for-win7-linux-amd64\\.zip$")) | .browser_download_url' | head -n 1)
-          echo "Downloading XTLS/go-win7 SDK from: $GO_WIN7_URL"
-          wget -qO go-win7.zip "$GO_WIN7_URL"
-          unzip -q go-win7.zip -d /usr/local/
-          # 将魔改版 Go 加入最高优先级环境变量
-          echo "/usr/local/go/bin" >> $GITHUB_PATH
+          GO_WIN7_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name == "go-for-win7-linux-amd64.zip") | .browser_download_url' | head -n 1)
+          echo "Go-Win7 URL: $GO_WIN7_URL"
+          curl -sL "$GO_WIN7_URL" -o go-win7.zip
+          mkdir -p "$HOME/go-win7-sdk"
+          unzip -q go-win7.zip -d "$HOME/go-win7-sdk"
+          echo "$HOME/go-win7-sdk/go/bin" >> $GITHUB_PATH
+          echo "GOROOT=$HOME/go-win7-sdk/go" >> $GITHUB_ENV
 
-      - name: 5. 验证 Go 版本并交叉编译 Windows 7 版本
+      - name: 4. 交叉编译 Windows 7 专属版本
         working-directory: ./openlist-src
         run: |
+          which go
           go version
           export GOOS=windows
           export GOARCH=${{ github.event.inputs.arch || 'amd64' }}
           export CGO_ENABLED=0
           
-          # 获取版本号信息注入二进制文件
-          VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v4.0.0-win7")
+          VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v4.2.9-win7")
           BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S')
           
           go build -trimpath -ldflags="-s -w -buildid= \
@@ -63,7 +61,7 @@ jobs:
             -X '://github.com{BUILD_TIME}'" \
             -o openlist-windows-${GOARCH}-win7.exe .
 
-      - name: 6. 上传编译产物
+      - name: 5. 打包上传编译产物
         uses: actions/upload-artifact@v4
         with:
           name: openlist-windows-${{ github.event.inputs.arch || 'amd64' }}-win7
