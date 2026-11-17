@@ -18,7 +18,8 @@ jobs:
     steps:
       - name: 1. 拉取 OpenList 最新源码
         run: |
-          git clone --depth 1 https://github.com openlist-src
+          REPO_PATH="OpenListTeam/OpenList.git"
+          git clone --depth 1 "https://github.com{REPO_PATH}" openlist-src
           ls -la openlist-src
 
       - name: 2. 下载并集成 OpenList 前端静态页面
