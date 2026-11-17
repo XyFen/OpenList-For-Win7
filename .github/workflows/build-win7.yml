@@ -1,0 +1,71 @@
+name: Build OpenList for Windows 7
+
+on:
+  workflow_dispatch: # 支持在 GitHub 页面手动一键触发
+    inputs:
+      arch:
+        description: '目标系统架构 (amd64 为 64位，386 为 32位)'
+        required: true
+        default: 'amd64'
+        type: choice
+        options:
+          - amd64
+          - '386'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. 安装基础解压与编译依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq unzip curl wget
+
+      - name: 2. 拉取 OpenList 最新源码
+        run: |
+          git clone --depth 1 https://github.com openlist-src
+
+      - name: 3. 下载并集成 OpenList 前端静态页面
+        run: |
+          cd openlist-src
+          mkdir -p public/dist
+          # 自动获取最新的前端构建压缩包
+          FRONTEND_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name | endswith(".tar.gz")) | .browser_download_url' | head -n 1)
+          echo "Downloading Frontend from: $FRONTEND_URL"
+          wget -qO dist.tar.gz "$FRONTEND_URL"
+          tar -zxf dist.tar.gz -C public/dist
+          rm -f dist.tar.gz
+
+      - name: 4. 下载并配置 XTLS/go-win7 编译器
+        run: |
+          # 自动获取 XTLS/go-win7 最新版 Linux amd64 预编译包
+          GO_WIN7_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name | test("go-for-win7-linux-amd64\\.zip$")) | .browser_download_url' | head -n 1)
+          echo "Downloading XTLS/go-win7 SDK from: $GO_WIN7_URL"
+          wget -qO go-win7.zip "$GO_WIN7_URL"
+          unzip -q go-win7.zip -d /usr/local/
+          # 将魔改版 Go 加入最高优先级环境变量
+          echo "/usr/local/go/bin" >> $GITHUB_PATH
+
+      - name: 5. 验证 Go 版本并交叉编译 Windows 7 版本
+        working-directory: ./openlist-src
+        run: |
+          go version
+          export GOOS=windows
+          export GOARCH=${{ github.event.inputs.arch || 'amd64' }}
+          export CGO_ENABLED=0
+          
+          # 获取版本号信息注入二进制文件
+          VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v4.0.0-win7")
+          BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S')
+          
+          go build -trimpath -ldflags="-s -w -buildid= \
+            -X '://github.com{VERSION}-win7' \
+            -X '://github.com{BUILD_TIME}'" \
+            -o openlist-windows-${GOARCH}-win7.exe .
+
+      - name: 6. 上传编译产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: openlist-windows-${{ github.event.inputs.arch || 'amd64' }}-win7
+          path: openlist-src/openlist-windows-*-win7.exe
+          retention-days: 7
