@@ -23,27 +23,27 @@ jobs:
           path: openlist-src
 
       - name: 2. 下载并集成 OpenList 前端静态页面
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           cd openlist-src
           mkdir -p public/dist
-          FRONTEND_URL=$(curl -fsSL https://github.com | jq -r '.assets[] | select(.name | test("\\.(tar\\.gz|zip)$")) | .browser_download_url' | head -n 1)
-          echo "Downloading Frontend: $FRONTEND_URL"
-          if [[ "$FRONTEND_URL" == *.zip ]]; then
-            curl -fsSL "$FRONTEND_URL" -o dist.zip
-            unzip -q dist.zip -d public/dist
+          gh release download -R OpenListTeam/OpenList-Frontend -p "*.tar.gz" -p "*.zip" -D /tmp/frontend
+          ls -la /tmp/frontend
+          if ls /tmp/frontend/*.zip 1> /dev/null 2>&1; then
+            unzip -q /tmp/frontend/*.zip -d public/dist
           else
-            curl -fsSL "$FRONTEND_URL" -o dist.tar.gz
-            tar -zxf dist.tar.gz -C public/dist
+            tar -zxf /tmp/frontend/*.tar.gz -C public/dist
           fi
           ls -la public/dist
 
       - name: 3. 下载并配置 XTLS/go-win7 编译器
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          GO_WIN7_URL=$(curl -fsSL https://github.com | jq -r '.assets[] | select(.name == "go-for-win7-linux-amd64.zip") | .browser_download_url' | head -n 1)
-          echo "Downloading XTLS/go-win7: $GO_WIN7_URL"
-          curl -fsSL "$GO_WIN7_URL" -o go-win7.zip
           mkdir -p "$HOME/go-win7-sdk"
-          unzip -q go-win7.zip -d "$HOME/go-win7-sdk"
+          gh release download -R XTLS/go-win7 -p "go-for-win7-linux-amd64.zip" -D /tmp/gosdk
+          unzip -q /tmp/gosdk/go-for-win7-linux-amd64.zip -d "$HOME/go-win7-sdk"
           echo "$HOME/go-win7-sdk/go/bin" >> $GITHUB_PATH
           echo "GOROOT=$HOME/go-win7-sdk/go" >> $GITHUB_ENV
 
