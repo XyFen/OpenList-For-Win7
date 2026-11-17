@@ -51,23 +51,15 @@ jobs:
         run: |
           GO_BIN=$(find /tmp/go-win7-bin -type f -name "go" -path "*/bin/go" | head -n 1)
           GO_ROOT=$(dirname $(dirname "$GO_BIN"))
-          echo "Found GOROOT: $GO_ROOT"
           export GOROOT="$GO_ROOT"
           export PATH="$GO_ROOT/bin:$PATH"
-          which go
           go version
           
           export GOOS=windows
           export GOARCH=${{ github.event.inputs.arch || 'amd64' }}
           export CGO_ENABLED=0
           
-          VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v4.2.9-win7")
-          BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S')
-          
-          "$GO_BIN" build -trimpath -ldflags="-s -w -buildid= \
-            -X '://github.com{VERSION}-win7' \
-            -X '://github.com{BUILD_TIME}'" \
-            -o openlist-windows-${GOARCH}-win7.exe .
+          "$GO_BIN" build -trimpath -ldflags="-s -w -buildid=" -o openlist-windows-${GOARCH}-win7.exe .
           ls -lh openlist-windows-${GOARCH}-win7.exe
 
       - name: 5. 打包上传编译产物
