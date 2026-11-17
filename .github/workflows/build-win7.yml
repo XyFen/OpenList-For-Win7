@@ -41,17 +41,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p "$HOME/go-win7-sdk"
+          mkdir -p /tmp/gosdk /tmp/go-win7-bin
           gh release download -R XTLS/go-win7 -p "go-for-win7-linux-amd64.zip" -D /tmp/gosdk
-          unzip -q /tmp/gosdk/go-for-win7-linux-amd64.zip -d "$HOME/go-win7-sdk"
-          echo "$HOME/go-win7-sdk/go/bin" >> $GITHUB_PATH
-          echo "GOROOT=$HOME/go-win7-sdk/go" >> $GITHUB_ENV
+          unzip -q /tmp/gosdk/go-for-win7-linux-amd64.zip -d /tmp/go-win7-bin
+          ls -la /tmp/go-win7-bin
 
       - name: 4. 交叉编译 Windows 7 专属版本
         working-directory: ./openlist-src
         run: |
+          GO_BIN=$(find /tmp/go-win7-bin -type f -name "go" -path "*/bin/go" | head -n 1)
+          GO_ROOT=$(dirname $(dirname "$GO_BIN"))
+          echo "Found GOROOT: $GO_ROOT"
+          export GOROOT="$GO_ROOT"
+          export PATH="$GO_ROOT/bin:$PATH"
           which go
           go version
+          
           export GOOS=windows
           export GOARCH=${{ github.event.inputs.arch || 'amd64' }}
           export CGO_ENABLED=0
@@ -59,7 +64,7 @@ jobs:
           VERSION=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v4.2.9-win7")
           BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S')
           
-          go build -trimpath -ldflags="-s -w -buildid= \
+          "$GO_BIN" build -trimpath -ldflags="-s -w -buildid= \
             -X '://github.com{VERSION}-win7' \
             -X '://github.com{BUILD_TIME}'" \
             -o openlist-windows-${GOARCH}-win7.exe .
