@@ -19,26 +19,28 @@ jobs:
       - name: 1. 拉取 OpenList 最新源码
         run: |
           git clone --depth 1 https://github.com openlist-src
+          ls -la openlist-src
 
       - name: 2. 下载并集成 OpenList 前端静态页面
         run: |
           cd openlist-src
           mkdir -p public/dist
-          FRONTEND_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name | test("\\.(tar\\.gz|zip)$")) | .browser_download_url' | head -n 1)
-          echo "Frontend URL: $FRONTEND_URL"
+          FRONTEND_URL=$(curl -fsSL https://github.com | jq -r '.assets[] | select(.name | test("\\.(tar\\.gz|zip)$")) | .browser_download_url' | head -n 1)
+          echo "Downloading Frontend: $FRONTEND_URL"
           if [[ "$FRONTEND_URL" == *.zip ]]; then
-            curl -sL "$FRONTEND_URL" -o dist.zip
+            curl -fsSL "$FRONTEND_URL" -o dist.zip
             unzip -q dist.zip -d public/dist
           else
-            curl -sL "$FRONTEND_URL" -o dist.tar.gz
+            curl -fsSL "$FRONTEND_URL" -o dist.tar.gz
             tar -zxf dist.tar.gz -C public/dist
           fi
+          ls -la public/dist
 
       - name: 3. 下载并配置 XTLS/go-win7 编译器
         run: |
-          GO_WIN7_URL=$(curl -s https://github.com | jq -r '.assets[] | select(.name == "go-for-win7-linux-amd64.zip") | .browser_download_url' | head -n 1)
-          echo "Go-Win7 URL: $GO_WIN7_URL"
-          curl -sL "$GO_WIN7_URL" -o go-win7.zip
+          GO_WIN7_URL=$(curl -fsSL https://github.com | jq -r '.assets[] | select(.name == "go-for-win7-linux-amd64.zip") | .browser_download_url' | head -n 1)
+          echo "Downloading XTLS/go-win7: $GO_WIN7_URL"
+          curl -fsSL "$GO_WIN7_URL" -o go-win7.zip
           mkdir -p "$HOME/go-win7-sdk"
           unzip -q go-win7.zip -d "$HOME/go-win7-sdk"
           echo "$HOME/go-win7-sdk/go/bin" >> $GITHUB_PATH
@@ -60,6 +62,7 @@ jobs:
             -X '://github.com{VERSION}-win7' \
             -X '://github.com{BUILD_TIME}'" \
             -o openlist-windows-${GOARCH}-win7.exe .
+          ls -lh openlist-windows-${GOARCH}-win7.exe
 
       - name: 5. 打包上传编译产物
         uses: actions/upload-artifact@v4
